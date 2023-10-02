@@ -1,4 +1,5 @@
 import json
+import types
 import unittest
 from types import SimpleNamespace
 from typing import List
@@ -10,7 +11,7 @@ from gradescope_utils.autograder_utils.decorators import (
     weight,
 )
 
-from rsa import RSA
+import rsa as RSA
 
 
 class RSAParams:
@@ -33,24 +34,44 @@ class RSATest:
 
 class TestOutput(unittest.TestCase):
     test_params: RSATest
-    rsa: RSA
+    rsa: RSA.RSA
+    allowed_imports: List[str]
 
     def setUp(self):
-        self.rsa = RSA()
+        self.rsa = RSA.RSA()
+        self.allowed_imports = ["RSA"]
         with open("grading.json", "r") as grading_file:
             self.test_params = json.load(
                 grading_file, object_hook=lambda d: SimpleNamespace(**d)
             )
 
-    @weight(3)
+    def import_checker(self):
+        """Check imported packages"""
+        for name, val in list(globals().get("RSA").__dict__.items()):
+            if name.startswith("__"):
+                continue
+            if isinstance(val, types.BuiltinMethodType) or isinstance(
+                val, types.BuiltinFunctionType
+            ):
+                continue
+            if name == "gcd" or "typing." in str(val):
+                continue
+            return self.assertIn(
+                name,
+                self.allowed_imports,
+                f"Import not allowed: <{name}>",
+            )
+
+    @weight(30)
     @tags("output")
     @visibility("after_due_date")
-    @number("1.1")
+    @number("2.1")
     def test_key_generation(self):
         """
-        Compute Key using given p and q,
-        Check class attributes have been correctly set.
+        Compute Key using given p and q, and check class attributes have been correctly set.
         """
+        self.import_checker()
+
         for param in self.test_params.compute_key:
             self.rsa.compute_key(param.p, param.q, param.cp_index)
             for pkey in ["p", "q", "n", "phi", "e", "d"]:
@@ -63,14 +84,16 @@ class TestOutput(unittest.TestCase):
                     f"Checking class attribute {pkey} has correct value",
                 )
 
-    @weight(2)
+    @weight(20)
     @tags("output")
     @visibility("after_due_date")
-    @number("1.2")
+    @number("2.2")
     def test_encryption(self):
         """
-        Encrypt message
+        Check class method encrypt
         """
+        self.import_checker()
+
         for param in self.test_params.encryption:
             self.rsa.compute_key(param.p, param.q, param.cp_index)
             cipher_test = self.rsa.encrypt(param.msg)
@@ -78,17 +101,44 @@ class TestOutput(unittest.TestCase):
                 cipher_test, param.cipher, f"Checking class method encrypt"
             )
 
-    @weight(2)
+    @weight(20)
     @tags("output")
     @visibility("after_due_date")
-    @number("1.3")
-    def test_encryption(self):
+    @number("2.3")
+    def test_decryption(self):
         """
-        Decrypt message
+        Check class method decrypt
         """
-        for param in self.test_params.encryption:
+        self.import_checker()
+
+        for param in self.test_params.decryption:
             self.rsa.compute_key(param.p, param.q, param.cp_index)
             cipher_test = self.rsa.encrypt(param.msg)
-            self.assertEqual(cipher_test, param.cipher, f"Checking class method decrypt")
+            self.assertEqual(
+                cipher_test, param.cipher, f"Checking class method decrypt"
+            )
+            decrypted_msg = self.rsa.decrypt(param.cipher)
+            self.assertEqual(decrypted_msg, param.msg, f"Checking class method decrypt")
+
+    @weight(30)
+    @tags("output")
+    @visibility("after_due_date")
+    @number("2.4")
+    def test_all(self):
+        """
+        Check all methods
+        """
+        self.import_checker()
+
+        for param in (
+            self.test_params.compute_key
+            + self.test_params.encryption
+            + self.test_params.decryption
+        ):
+            self.rsa.compute_key(param.p, param.q, param.cp_index)
+            cipher_test = self.rsa.encrypt(param.msg)
+            self.assertEqual(
+                cipher_test, param.cipher, f"Checking class method decrypt"
+            )
             decrypted_msg = self.rsa.decrypt(param.cipher)
             self.assertEqual(decrypted_msg, param.msg, f"Checking class method decrypt")

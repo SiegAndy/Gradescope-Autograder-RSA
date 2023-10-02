@@ -1,11 +1,12 @@
 import unittest
 
-from gradescope_utils.autograder_utils.decorators import weight
+from gradescope_utils.autograder_utils.decorators import weight, visibility
 from gradescope_utils.autograder_utils.files import check_submitted_files
 
 
 class TestFiles(unittest.TestCase):
     @weight(0)
+    @visibility("visible")
     def test_submitted_files(self):
         """Check submitted files"""
         missing_files = check_submitted_files(["rsa.py"])

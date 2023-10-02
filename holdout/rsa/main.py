@@ -3,13 +3,16 @@ from math import gcd
 import random
 from typing import List
 
+
 from json import JSONEncoder
+
+
 class RSAJSONEncoder(JSONEncoder):
-        def default(self, o):
-            if hasattr(o, "toJSON"):
-                return o.toJson()    
-            else:
-                return o.__dict__
+    def default(self, o):
+        if hasattr(o, "toJSON"):
+            return o.toJson()
+        else:
+            return o.__dict__
 
 
 class RSAParams:
@@ -29,6 +32,7 @@ class RSAParams:
         for key in ignore_keys:
             json_dict.pop(key, None)
         return json_dict
+
 
 class RSATest:
     compute_key: List[RSAParams]
@@ -58,7 +62,7 @@ def generate_params(prime_list: List[int]) -> RSAParams:
     instance = RSAParams()
     while True:
         p, q = random.choices(prime_list, k=2)
-        if p == q or abs(p - q) <= 20 or abs (p - q) >= 60:
+        if p == q or abs(p - q) <= 20 or abs(p - q) >= 60:
             continue
         if p > q:
             instance.p = q
@@ -81,7 +85,7 @@ def generate_params(prime_list: List[int]) -> RSAParams:
         if len(coprime_list) == 0:
             continue
         instance.cp_index = random.randint(1, min(10, len(coprime_list)))
-        instance.e = coprime_list[instance.cp_index-1]
+        instance.e = coprime_list[instance.cp_index - 1]
         # print(instance.p, instance.q, instance.e, instance.cp_index, coprime_list)
 
         # compute d by e^{-1} mod phi
@@ -111,7 +115,5 @@ def generate_instance():
         json.dump(grading_json, output, default=lambda x: x.toJson(), indent=4)
 
 
-generate_instance()
-# for i in range(2, 1260):
-#     if gcd(i, 1260) == 1:
-#         print(i)
+if __name__ == "__main__":
+    generate_instance()
