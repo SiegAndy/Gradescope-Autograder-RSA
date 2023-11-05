@@ -1,8 +1,10 @@
+import io
 import json
+import sys
 import types
 import unittest
 from types import SimpleNamespace
-from typing import List
+from typing import Any, Callable, List
 
 from gradescope_utils.autograder_utils.decorators import (
     number,
@@ -12,7 +14,10 @@ from gradescope_utils.autograder_utils.decorators import (
     partial_credit,
 )
 
-import rsa as RSA
+try:
+    import rsa as RSA
+except SystemExit:
+    pass
 
 
 class RSAParams:
@@ -33,25 +38,67 @@ class RSATest:
     decryption: List[RSAParams]
 
 
+class SuppressClass(io.StringIO):
+    def __init__(
+        self,
+        *args,
+    ):
+        io.StringIO.__init__(self, *args)
+
+    def getvalue(self):
+        return ""
+
+
 class TestOutput(unittest.TestCase):
     test_params: RSATest
-    rsa: RSA.RSA
+    # rsa: RSA.RSA
     allowed_imports: List[str]
+    test_module_not_exit: bool
 
-    def setUp(self):
+    def setUp(self) -> None:
+        self.original_stdout = sys.stdout
+        self.suppress_text = io.StringIO()
         self.allowed_imports = ["RSA"]
         with open("grading.json", "r") as grading_file:
             self.test_params = json.load(
                 grading_file, object_hook=lambda d: SimpleNamespace(**d)
             )
+        self.test_module_not_exit = False
+        try:
+            self.rsa = RSA.RSA()
+        except NameError:
+            self.test_module_not_exit = True
 
-    def import_checker(self):
+    def suppress_print(self, suppress_print: bool) -> None:
+        if suppress_print:
+            sys.stdout = self.suppress_text
+        else:
+            sys.stdout = self.original_stdout
+
+    def method_wrapper(
+        self, method: Callable, *inputs, suppress_print: bool = True
+    ) -> Any:
+        if suppress_print:
+            self.suppress_print(True)
+        result = method(*inputs)
+        if suppress_print:
+            self.suppress_print(False)
+        return result
+
+    def import_checker(self) -> None:
         """Check imported packages"""
+        if self.test_module_not_exit:
+            self.assertTrue(
+                False,
+                "Class RSA not Found, make sure your file has correct name and does not exit program itself!",
+            )
         for name, val in list(globals().get("RSA").__dict__.items()):
             if name.startswith("__"):
                 continue
-            if isinstance(val, types.BuiltinMethodType) or isinstance(
-                val, types.BuiltinFunctionType
+            if (
+                isinstance(val, types.BuiltinMethodType)
+                or isinstance(val, types.BuiltinFunctionType)
+                or isinstance(val, types.FunctionType)
             ):
                 continue
             if name == "gcd" or "typing." in str(val):
@@ -72,13 +119,17 @@ class TestOutput(unittest.TestCase):
         """
         self.import_checker()
         self.rsa = RSA.RSA()
+        try:
+            self.rsa = RSA.RSA()
+        except NameError:
+            self.test_module_not_exit = True
         no_param = set()
         wrong_param = set()
         error_param = set()
         for param in self.test_params.compute_key:
-            self.rsa.compute_key(param.p, param.q, param.cp_index)
+            self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
             # each class attributes is 5 credit
-            for pkey in ["p", "q", "n", "phi", "e", "d"]:
+            for pkey in ["n", "phi", "e", "d"]:
                 if not hasattr(self.rsa, pkey) or getattr(self.rsa, pkey) == None:
                     no_param.add(pkey)
                     continue
@@ -111,9 +162,12 @@ class TestOutput(unittest.TestCase):
         curr_score = 0
 
         for param in self.test_params.encryption:
-            for pkey in ["p", "q", "n", "phi", "e", "d"]:
+            for pkey in ["n", "phi", "e", "d"]:
+                # normal way of setting class instance variable
                 setattr(self.rsa, pkey, getattr(param, pkey))
-            cipher_test = self.rsa.encrypt(param.msg)
+                # directly setting class variable
+                setattr(RSA.RSA, pkey, getattr(param, pkey))
+            cipher_test = self.method_wrapper(self.rsa.encrypt, param.msg)
             self.assertEqual(
                 cipher_test, param.cipher, f"Class method encrypt output wrong result"
             )
@@ -133,13 +187,12 @@ class TestOutput(unittest.TestCase):
         curr_score = 0
 
         for param in self.test_params.decryption:
-            for pkey in ["p", "q", "n", "phi", "e", "d"]:
+            for pkey in ["n", "phi", "e", "d"]:
+                # normal way of setting class instance variable
                 setattr(self.rsa, pkey, getattr(param, pkey))
-            cipher_test = self.rsa.encrypt(param.msg)
-            self.assertEqual(
-                cipher_test, param.cipher, f"Class method encrypt output wrong result"
-            )
-            decrypted_msg = self.rsa.decrypt(param.cipher)
+                # directly setting class variable
+                setattr(RSA.RSA, pkey, getattr(param, pkey))
+            decrypted_msg = self.method_wrapper(self.rsa.decrypt, param.cipher)
             self.assertEqual(
                 decrypted_msg, param.msg, f"Class method decrypt output wrong result"
             )
@@ -163,12 +216,12 @@ class TestOutput(unittest.TestCase):
             + self.test_params.encryption
             + self.test_params.decryption
         ):
-            self.rsa.compute_key(param.p, param.q, param.cp_index)
-            cipher_test = self.rsa.encrypt(param.msg)
+            self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
+            cipher_test = self.method_wrapper(self.rsa.encrypt, param.msg)
             self.assertEqual(
                 cipher_test, param.cipher, f"Class method encrypt output wrong result"
             )
-            decrypted_msg = self.rsa.decrypt(param.cipher)
+            decrypted_msg = self.method_wrapper(self.rsa.decrypt, cipher_test)
             self.assertEqual(
                 decrypted_msg, param.msg, f"Class method decrypt output wrong result"
             )
