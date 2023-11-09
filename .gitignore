@@ -165,3 +165,5 @@ solution.py
 *workspace
 
 holdout/example_instance
+
+*.DS_Store

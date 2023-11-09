@@ -126,6 +126,7 @@ class TestOutput(unittest.TestCase):
         no_param = set()
         wrong_param = set()
         error_param = set()
+        wrong_param_record = dict()
         for param in self.test_params.compute_key:
             self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
             # each class attributes is 5 credit
@@ -135,18 +136,29 @@ class TestOutput(unittest.TestCase):
                     continue
                 elif getattr(self.rsa, pkey) != getattr(param, pkey):
                     wrong_param.add(pkey)
+                    wrong_param_record[pkey] = (getattr(self.rsa, pkey), ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]]))
                     continue
 
         error_param = no_param.union(wrong_param)
         set_score(5 * (6 - len(error_param)))
 
+            
         self.assertTrue(
             len(no_param) == 0,
-            f"Class does not have the attribute(s) <{', '.join(no_param)}>",
+            f"\nClass does not have the attribute(s) <{', '.join(no_param)}>",
+        )
+
+        if len(wrong_param) == 0: return
+
+        wrong_param_text = "\n".join(
+            [
+                f"Class compute wrong attribute(s) <{curr}={wrong_param_record[curr][0]}> for params: {wrong_param_record[curr][1]}."
+                for curr in wrong_param
+            ]
         )
         self.assertTrue(
             len(wrong_param) == 0,
-            f"Class compute wrong attribute(s) <{', '.join(wrong_param)}>",
+            "\n" + wrong_param_text,
         )
 
     @partial_credit(20)
@@ -162,14 +174,15 @@ class TestOutput(unittest.TestCase):
         curr_score = 0
 
         for param in self.test_params.encryption:
-            for pkey in ["n", "phi", "e", "d"]:
+            for pkey in ["p", "q", "n", "phi", "e", "d"]:
                 # normal way of setting class instance variable
                 setattr(self.rsa, pkey, getattr(param, pkey))
                 # directly setting class variable
                 setattr(RSA.RSA, pkey, getattr(param, pkey))
+            param_string = ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]])
             cipher_test = self.method_wrapper(self.rsa.encrypt, param.msg)
             self.assertEqual(
-                cipher_test, param.cipher, f"Class method encrypt output wrong result"
+                cipher_test, param.cipher, f"\nClass method encrypt output wrong result. {param_string}"
             )
             curr_score += 4
             set_score(curr_score)
@@ -187,14 +200,16 @@ class TestOutput(unittest.TestCase):
         curr_score = 0
 
         for param in self.test_params.decryption:
-            for pkey in ["n", "phi", "e", "d"]:
+            for pkey in ["p", "q", "n", "phi", "e", "d"]:
                 # normal way of setting class instance variable
                 setattr(self.rsa, pkey, getattr(param, pkey))
                 # directly setting class variable
                 setattr(RSA.RSA, pkey, getattr(param, pkey))
+            param_string = ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]])
             decrypted_msg = self.method_wrapper(self.rsa.decrypt, param.cipher)
             self.assertEqual(
-                decrypted_msg, param.msg, f"Class method decrypt output wrong result"
+                decrypted_msg, param.msg, 
+                f"\nClass method decrypt output wrong result. {param_string}"
             )
             curr_score += 4
             set_score(curr_score)
@@ -217,13 +232,14 @@ class TestOutput(unittest.TestCase):
             + self.test_params.decryption
         ):
             self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
+            param_string = ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]])
             cipher_test = self.method_wrapper(self.rsa.encrypt, param.msg)
             self.assertEqual(
-                cipher_test, param.cipher, f"Class method encrypt output wrong result"
+                cipher_test, param.cipher, f"\nClass method encrypt output wrong result. {param_string}"
             )
             decrypted_msg = self.method_wrapper(self.rsa.decrypt, cipher_test)
             self.assertEqual(
-                decrypted_msg, param.msg, f"Class method decrypt output wrong result"
+                decrypted_msg, param.msg, f"\nClass method decrypt output wrong result. {param_string}"
             )
             curr_score += 2
             set_score(curr_score)
