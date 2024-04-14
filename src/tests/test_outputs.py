@@ -75,6 +75,11 @@ class TestOutput(unittest.TestCase):
         else:
             sys.stdout = self.original_stdout
 
+    def cls_attr_cleanup(self, cls, attr_names: List[str]) -> None:
+        for attr_name in attr_names:
+            if getattr(cls, attr_name, None) is not None:
+                setattr(cls, attr_name, None)
+
     def method_wrapper(
         self, method: Callable, *inputs, suppress_print: bool = True
     ) -> Any:
@@ -128,13 +133,17 @@ class TestOutput(unittest.TestCase):
         error_param = set()
         wrong_param_record = dict()
         for param in self.test_params.compute_key:
+            self.cls_attr_cleanup(self.rsa, ["p", "q", "n", "phi", "e", "d"])
             self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
             # each class attributes is 5 credit
             for pkey in ["n", "phi", "e", "d"]:
-                if not hasattr(self.rsa, pkey) or getattr(self.rsa, pkey) == None:
+                if (not hasattr(self.rsa, pkey) or getattr(self.rsa, pkey) == None) and (not hasattr(RSA.RSA, pkey) or getattr(RSA.RSA, pkey) == None):
                     no_param.add(pkey)
                     continue
-                elif getattr(self.rsa, pkey) != getattr(param, pkey):
+                elif getattr(self.rsa, pkey) != getattr(param, pkey) and getattr(RSA.RSA, pkey) != getattr(param, pkey):
+                    if getattr(self.rsa, pkey) is None:
+                        no_param.add(pkey)
+                        continue
                     wrong_param.add(pkey)
                     wrong_param_record[pkey] = (getattr(self.rsa, pkey), ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]]))
                     continue
@@ -231,6 +240,7 @@ class TestOutput(unittest.TestCase):
             + self.test_params.encryption
             + self.test_params.decryption
         ):
+            self.cls_attr_cleanup(self.rsa, ["p", "q", "n", "phi", "e", "d"])
             self.method_wrapper(self.rsa.compute_key, param.p, param.q, param.cp_index)
             param_string = ",".join([f"{tag}:{getattr(param, tag)}" for tag in ["p", "q", "n", "phi", "cp_index", "e", "d"]])
             cipher_test = self.method_wrapper(self.rsa.encrypt, param.msg)
